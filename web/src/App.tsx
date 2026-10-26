@@ -20,6 +20,7 @@ import {
   FileCode2,
   FlaskConical,
   LockKeyhole,
+  Monitor,
   Moon,
   Play,
   RotateCcw,
@@ -51,20 +52,25 @@ const difficulty = (d: string) =>
   ({ E: "Easy", M: "Medium", H: "Hard" })[d] || d;
 const editorFontSizes = [13, 14, 15, 16, 17, 18, 20];
 type Theme = "light" | "dark";
-function initialTheme(): Theme {
+type ThemePreference = Theme | "system";
+function initialThemePreference(): ThemePreference {
   try {
     const saved = localStorage.getItem("paperleet.theme");
     if (saved === "light" || saved === "dark") return saved;
   } catch {
     // Browser storage can be unavailable in private or embedded contexts.
   }
+  return "system";
+}
+function darkSchemeQuery() {
   try {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light";
+    return window.matchMedia("(prefers-color-scheme: dark)");
   } catch {
-    return "light";
+    return undefined;
   }
+}
+function systemTheme(): Theme {
+  return darkSchemeQuery()?.matches ? "dark" : "light";
 }
 function initialEditorFontSize() {
   try {
@@ -348,7 +354,9 @@ function Workspace() {
     [rightTab, setRightTab] = useState("code"),
     [toast, setToast] = useState(""),
     [font, setFont] = useState(initialEditorFontSize),
-    [theme, setTheme] = useState<Theme>(initialTheme);
+    [themePreference, setThemePreference] = useState<ThemePreference>(initialThemePreference),
+    [preferredSystemTheme, setPreferredSystemTheme] = useState<Theme>(systemTheme);
+  const theme = themePreference === "system" ? preferredSystemTheme : themePreference;
   const sourceProblem = problems.find(
     (p) => p.id === id || String(p.number) === id,
   );
@@ -425,10 +433,21 @@ function Workspace() {
       theme === "dark" ? "#1a1a1a" : "#ffffff",
     );
   }, [theme]);
-  function selectTheme(nextTheme: Theme) {
-    setTheme(nextTheme);
+  useEffect(() => {
+    if (themePreference !== "system") return;
+    // Follow live OS appearance changes, such as scheduled dark mode at sunset.
+    const media = darkSchemeQuery();
+    if (!media) return;
+    const sync = () => setPreferredSystemTheme(media.matches ? "dark" : "light");
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, [themePreference]);
+  function selectTheme(nextTheme: ThemePreference) {
+    setThemePreference(nextTheme);
     try {
-      localStorage.setItem("paperleet.theme", nextTheme);
+      if (nextTheme === "system") localStorage.removeItem("paperleet.theme");
+      else localStorage.setItem("paperleet.theme", nextTheme);
     } catch {
       // Theme selection still works for this session without browser storage.
     }
@@ -550,9 +569,9 @@ function Workspace() {
             >
               <button
                 type="button"
-                className={theme === "light" ? "selected" : ""}
+                className={themePreference === "light" ? "selected" : ""}
                 aria-label={t("浅色主题", "Light theme")}
-                aria-pressed={theme === "light"}
+                aria-pressed={themePreference === "light"}
                 title={t("浅色主题", "Light theme")}
                 onClick={() => selectTheme("light")}
               >
@@ -560,13 +579,23 @@ function Workspace() {
               </button>
               <button
                 type="button"
-                className={theme === "dark" ? "selected" : ""}
+                className={themePreference === "dark" ? "selected" : ""}
                 aria-label={t("深色主题", "Dark theme")}
-                aria-pressed={theme === "dark"}
+                aria-pressed={themePreference === "dark"}
                 title={t("深色主题", "Dark theme")}
                 onClick={() => selectTheme("dark")}
               >
                 <Moon size={15} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className={themePreference === "system" ? "selected" : ""}
+                aria-label={t("跟随系统", "Match system")}
+                aria-pressed={themePreference === "system"}
+                title={t("跟随系统", "Match system")}
+                onClick={() => selectTheme("system")}
+              >
+                <Monitor size={15} aria-hidden="true" />
               </button>
             </div>
           </div>
