@@ -95,6 +95,17 @@ function Playback({
     </div>
   );
 }
+function useDocumentTheme() {
+  const read = () => (typeof document === "undefined" ? undefined : document.documentElement.dataset.theme);
+  const [theme, setTheme] = useState(read);
+  useEffect(() => {
+    // Canvas colors are painted once, so redraw when the app switches themes.
+    const observer = new MutationObserver(() => setTheme(read()));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, []);
+  return theme;
+}
 function ParticleCanvas({
   points,
   field,
@@ -110,6 +121,7 @@ function ParticleCanvas({
 }) {
   const tx = useLabText();
   const ref = useRef<HTMLCanvasElement>(null);
+  const theme = useDocumentTheme();
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
@@ -122,7 +134,7 @@ function ParticleCanvas({
     canvas.height = h * ratio;
     ctx.scale(ratio, ratio);
     ctx.clearRect(0, 0, w, h);
-    const light = document.documentElement.dataset.theme === "light";
+    const light = theme === "light";
     const limit = Math.max(
       3.3,
       ...points.flat().map(Math.abs).filter(Number.isFinite),
@@ -209,7 +221,7 @@ function ParticleCanvas({
     ctx.font = "9px monospace";
     ctx.fillText("x₁", w - 35, h / 2 - 8);
     ctx.fillText("x₂", w / 2 + 8, 20);
-  }, [points, field, ab, target, comparison]);
+  }, [points, field, ab, target, comparison, theme]);
   return (
     <canvas
       ref={ref}
